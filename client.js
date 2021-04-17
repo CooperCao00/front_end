@@ -69,15 +69,70 @@ ${this.bodyText}`
 
 class ResponseParser {
     constructor() {
+        this.WAITING_STATUS_LINE = 0;
+        this.WAITING_STATUS_LINE_END = 1;
+        this.WAITING_HEADER_NAME = 2;
+        this.WAITING_HEADER_SPACE = 3;
+        this.WAITING_HEADER_VALUE = 4;
+        this.WAITING_HEADER_LINE_END = 5;
+        this.WAITING_HEADER_BLOCK_END = 6;
+        this.WAITING_BODY = 7;
 
+        this.currentLine = this.WAITING_STATUS_LINE;
+        this.statusLine = "";
+        this.headers = {};
+        this.headerName = "";
+        this.headerValue = "";
+        this.bodyPaeser = null;
     }
+
+    get isFinished() {
+        return this.bodyPaeser && this.bodyPaeser.isFinished;
+    }
+
+    get response() {
+        this.statusLine.match(/HTTP\/1.1 ([0-9]+) ([\s\S]+)/)
+        return {
+            statusCode: RegExp.$1,
+            statusText: RegExp.$2,
+            headers: this.headers,
+            body: this.bodyPaeser.content.join("")
+        }
+    }
+
     receive(string) {
         for(let i = 0; i < string.length; i++) {
             this.receiveChar(string.charAt(i));
         }
     }
-    receiveChar() {
-
+    receiveChar(c) {
+        if(this.currentLine === this.WAITING_STATUS_LINE) {
+            if(c === "\r") {
+                this.currentLine = this.WAITING_STATUS_LINE_END
+            }else {
+                this.statusLine += c;
+            }
+        }else if(this.currentLine === this.WAITING_STATUS_LINE_END) {
+            if(c === "\n") {
+                this.currentLine = this.WAITING_HEADER_NAME
+            }
+        }else if(this.currentLine === this.WAITING_HEADER_NAME) {
+            if(c === ":") {
+                this.currentLine = this.WAITING_HEADER_SPACE;
+            }else if(c === "\r") {
+                this.currentLine = this.WAITING_HEADER_BLOCK_END;
+                if(this.headers['Transfer-Encoding'] === "chunked") {
+                    this.bodyPaeser = new ThunkBodyParser();
+                }
+            }else {
+                this.headerName += char;
+            }
+        }else if(this.currentLine === this.WAITING_HEADER_VALUE) {
+            if(c === "\r") {
+                this.currentLine = this.WAITING_HEADER_LINE_END;
+                this.header[this.headerName] = this.headerValue
+            }
+        }
     }
 }
 
