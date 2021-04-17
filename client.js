@@ -1,7 +1,6 @@
 const net = require("net");
 
 
-
 class Request {
     constructor(options) {
         this.method = options.method || "GET";
@@ -37,13 +36,12 @@ class Request {
                     port: this.port
                 }, () => {
 
-                    console.log("request send this:\n", this.toString());
                     connection.write(this.toString());
                 })
             }
 
             connection.on("data", data => {
-                console.log("data:\n",data.toString());
+                // console.log("data:\n",data.toString());
                 parser.receive(data.toString());
                 if(parser.isFinished) {
                     resolve(parser.response);
@@ -55,7 +53,7 @@ class Request {
                 reject(err)
                 connection.end();
             })
-            resolve();
+            // resolve("resolve this?");
         })
     }
 
@@ -78,16 +76,16 @@ class ResponseParser {
         this.WAITING_HEADER_BLOCK_END = 6;
         this.WAITING_BODY = 7;
 
-        this.currentLine = this.WAITING_STATUS_LINE;
+        this.current = this.WAITING_STATUS_LINE;
         this.statusLine = "";
         this.headers = {};
         this.headerName = "";
         this.headerValue = "";
-        this.bodyPaeser = null;
+        this.bodyParser = null;
     }
 
     get isFinished() {
-        return this.bodyPaeser && this.bodyPaeser.isFinished;
+        return this.bodyParser && this.bodyParser.isFinished;
     }
 
     get response() {
@@ -96,7 +94,7 @@ class ResponseParser {
             statusCode: RegExp.$1,
             statusText: RegExp.$2,
             headers: this.headers,
-            body: this.bodyPaeser.content.join("")
+            body: this.bodyParser.content.join("")
         }
     }
 
@@ -106,31 +104,97 @@ class ResponseParser {
         }
     }
     receiveChar(c) {
-        if(this.currentLine === this.WAITING_STATUS_LINE) {
+        if(this.current === this.WAITING_STATUS_LINE) {
             if(c === "\r") {
-                this.currentLine = this.WAITING_STATUS_LINE_END
+                this.current = this.WAITING_STATUS_LINE_END
             }else {
                 this.statusLine += c;
             }
-        }else if(this.currentLine === this.WAITING_STATUS_LINE_END) {
+        }else if(this.current === this.WAITING_STATUS_LINE_END) {
             if(c === "\n") {
-                this.currentLine = this.WAITING_HEADER_NAME
+                this.current = this.WAITING_HEADER_NAME
             }
-        }else if(this.currentLine === this.WAITING_HEADER_NAME) {
+        }else if(this.current === this.WAITING_HEADER_NAME) {
             if(c === ":") {
-                this.currentLine = this.WAITING_HEADER_SPACE;
+                this.current = this.WAITING_HEADER_SPACE;
             }else if(c === "\r") {
-                this.currentLine = this.WAITING_HEADER_BLOCK_END;
+                this.current = this.WAITING_HEADER_BLOCK_END;
                 if(this.headers['Transfer-Encoding'] === "chunked") {
-                    this.bodyPaeser = new ThunkBodyParser();
+                    this.bodyParser = new ThunkBodyParser();
                 }
             }else {
-                this.headerName += char;
+                this.headerName += c;
             }
-        }else if(this.currentLine === this.WAITING_HEADER_VALUE) {
+        }else if(this.current === this.WAITING_HEADER_SPACE) {
+            if(c === " ") {
+                this.current = this.WAITING_HEADER_VALUE
+            }
+        }
+        else if(this.current === this.WAITING_HEADER_VALUE) {
             if(c === "\r") {
-                this.currentLine = this.WAITING_HEADER_LINE_END;
-                this.header[this.headerName] = this.headerValue
+                this.current = this.WAITING_HEADER_LINE_END;
+                this.headers[this.headerName] = this.headerValue;
+                this.headerName = "";
+                this.headerValue = "";
+            }else {
+                this.headerValue += c;
+            }
+        }else if(this.current === this.WAITING_HEADER_LINE_END) {
+            if(c === "\n"){
+                this.current = this.WAITING_HEADER_NAME;
+            }
+        }else if(this.current === this.WAITING_HEADER_BLOCK_END) {
+            if(c === "\n") {
+                this.current = this.WAITING_BODY;
+            }
+        }else if(this.current === this.WAITING_BODY) {
+            this.bodyParser.receiveChar(c);
+        }
+    }
+}
+
+class ThunkBodyParser {
+    constructor() {
+        this.WAITING_LENGTH = 0;
+        this.WAITING_LENGTH_LINE_END = 1;
+        this.READING_TRUNK = 2;
+        this.WAITING_NEW_LINE = 3;
+        this.WAITING_NEW_LINE_END = 4;
+
+        this.length = 0;
+        this.content = [];
+        this.isFinished = false;
+        this.current = this.WAITING_LENGTH;
+    }
+
+    receiveChar(c) {
+        if(this.current === this.WAITING_LENGTH) {
+            if(c === "\r") {
+                if(this.length === 0) {
+                    this.isFinished = true;
+                }
+                this.current = this.WAITING_LENGTH_LINE_END;
+            }else {
+                this.length *= 16;
+                this.length += parseInt(c, 16);
+            }
+        }else if(this.current === this.WAITING_LENGTH_LINE_END) {
+            if(c === "\n") {
+                this.current = this.READING_TRUNK;
+            }
+        }else if(this.current === this.READING_TRUNK) {
+            this.content.push(c);
+            this.length --;
+            if(this.length === 0) {
+                this.current = this.WAITING_NEW_LINE;
+            }
+        }else if(this.current === this.WAITING_NEW_LINE) {
+            if(c === "\r") {
+                this.current = this.WAITING_NEW_LINE_END;
+            }
+        }else if(this.current === this.WAITING_NEW_LINE_END) {
+            if(c === "\n") {
+                this.current = this.WAITING_LENGTH
             }
         }
     }
@@ -147,6 +211,7 @@ void async function() {
         },
         body: {
             name: "Cooper",
+            age: 23
         }
     });
 
