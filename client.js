@@ -1,5 +1,5 @@
 const net = require("net");
-
+const parser = require("./parser");
 
 class Request {
     constructor(options) {
@@ -217,5 +217,7 @@ void async function() {
 
     const response = await request.send();
 
-    console.log("response: ", response);
+    const dom = parser.parserHTML(response.body)
+
+    console.log(JSON.stringify(dom));
 }()
