@@ -3,6 +3,7 @@ const spaceRegExp = /^[\t\n\f ]$/;
 const nullString = "\u0000";
 const css = require("css");
 const EOF = Symbol("EOF");
+const layout = require("./layout");
 
 
 let currentToken = null;
@@ -150,6 +151,7 @@ function emit(token) {
                 if(top.tagName === "style") {
                     addCSSRules(top.children[0].content)
                 }
+                layout(top)
                 stack.pop();
             }
             currentTextNode = null;
