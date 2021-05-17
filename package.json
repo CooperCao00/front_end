@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "css": "^3.0.0",
-    "node-gyp": "^8.0.0"
-  }
-}
